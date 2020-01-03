@@ -27,7 +27,7 @@ app.use(require("./routes/users"));
 app.use(require("./routes/posts"));
 
 /** Starting API */
-app.set("port", process.env.POST || 5000);
+app.set("port", process.env.PORT || 5000);
 
 app.listen(app.get("port"), () =>
   console.log(`API ready listen ${app.get("port")} port`)
