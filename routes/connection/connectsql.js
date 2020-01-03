@@ -1,5 +1,14 @@
 const mysql = require("mysql");
 
+/*
+const connection = mysql.createConnection({
+    host: 'localhost',
+    user: 'root',
+    password: 'root',
+    database: 'apeticorp'
+});
+*/
+
 // Freesqldatabase
 const connection = mysql.createConnection({
   host: "sql10.freesqldatabase.com",

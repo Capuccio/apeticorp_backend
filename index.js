@@ -13,6 +13,7 @@ app.use(express.json({ limit: "1000mb", extended: true }));
 app.use(fileUpload());
 
 /** Connect to MongoDB (MongoDB Atlas) */
+// mongoose.connect('mongodb://localhost/apeticorp', { useNewUrlParser: true, useUnifiedTopology: true })
 const URI =
   "mongodb+srv://Capuccio:WxujZDNwF0Ltx0tq@apeticorpcluster-hrm4x.mongodb.net/apeticorp?retryWrites=true&w=majority";
 
