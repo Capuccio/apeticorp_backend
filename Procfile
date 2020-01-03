@@ -1,2 +1,1 @@
-backend: yarn start
-worker: heroku ps:scale web=1
+web: yarn start
