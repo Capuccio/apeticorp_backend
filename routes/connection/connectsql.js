@@ -9,12 +9,12 @@ const connection = mysql.createConnection({
 });
 */
 
-// Freesqldatabase
+// Viveres Natali
 const connection = mysql.createConnection({
-  host: "sql10.freesqldatabase.com",
-  user: "sql10317545",
-  password: "gXXIzxSp2Y",
-  database: "sql10317545"
+  host: "www.viveresnatali.com",
+  user: "c4jose",
+  password: "Ister*2020",
+  database: "c4jose"
 });
 
 connection.connect(err => {
