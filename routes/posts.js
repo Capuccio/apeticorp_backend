@@ -16,9 +16,10 @@ route.get("/posts/:page", async (req, res) => {
     .exec(function(error, posts) {
       if (error) {
         console.log(error);
-        res.status(500).json({
+        res.json({
           error: true,
           server: true,
+          title: "Error Query",
           msg: "Ha ocurrido un error en la consulta de los Posts"
         });
       }

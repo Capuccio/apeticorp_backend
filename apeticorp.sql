@@ -32,6 +32,7 @@ CREATE TABLE administrator (
     id_administrator INTEGER NOT NULL AUTO_INCREMENT,
     adm_name VARCHAR(30) NOT NULL,
     adm_lastname VARCHAR(30) NOT NULL,
+    adm_email TEXT NOT NULL,
     adm_password TEXT NOT NULL,
     PRIMARY KEY (id_administrator)
 );
