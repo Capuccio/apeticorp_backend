@@ -4,7 +4,10 @@ CREATE TABLE users (
     use_lastname VARCHAR(30) NOT NULL,
     use_email TEXT NOT NULL,
     use_password TEXT NOT NULL,
+    use_level INT(2) NOT NULL,
     use_mobile INT(10) NOT NULL,
+    use_picture TEXT,
+    use_deleteHashPicture TEXT,
     use_numberefe INT (2) NOT NULL,
     use_status INT NOT NULL,
     use_exchange_status INT NOT NULL,
@@ -24,15 +27,7 @@ CREATE TABLE notifications (
     id_notifications INTEGER NOT NULL AUTO_INCREMENT,
     id_users INTEGER NOT NULL,
     not_message TEXT NOT NULL,
+    not_status INTEGER NOT NULL,
     PRIMARY KEY (id_notifications),
     FOREIGN KEY (id_users) REFERENCES users(id_users)
-);
-
-CREATE TABLE administrator (
-    id_administrator INTEGER NOT NULL AUTO_INCREMENT,
-    adm_name VARCHAR(30) NOT NULL,
-    adm_lastname VARCHAR(30) NOT NULL,
-    adm_email TEXT NOT NULL,
-    adm_password TEXT NOT NULL,
-    PRIMARY KEY (id_administrator)
 );

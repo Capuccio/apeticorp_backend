@@ -1,7 +1,10 @@
 const express = require("express");
 const bcrypt = require("bcrypt");
 const mysql = require("mysql");
+const request = require("request");
+const { IMGUR_API } = require("../api");
 const con = require("./connection/connectsql");
+require("dotenv").config();
 
 const saltRounds = 10;
 
@@ -22,6 +25,11 @@ route.get("/user/:idUser", async (req, res) => {
           msg: "Error al consultar el usuario"
         });
       }
+
+      delete result[0].use_password;
+      delete result[0].use_mobile;
+      delete result[0].use_deleteHashPicture;
+      delete result[0].use_exchange_status;
 
       const user = result[0];
 
@@ -115,9 +123,9 @@ route.get("/notifications/:idUser", async (req, res) => {
   const { idUser } = req.params;
 
   let sql =
-    "SELECT * FROM notifications WHERE id_users = ? ORDER BY id_notifications DESC";
+    "SELECT * FROM notifications WHERE id_users = ? ORDER BY id_notifications DESC LIMIT 10";
 
-  con.query(sql, [idUser], async (error, result) => {
+  con.query(sql, [idUser, 1], async (error, result) => {
     if (error) {
       console.log(
         `Error al consultar notificaciones del ID: ${idUser}. Error: ${error}`
@@ -125,13 +133,39 @@ route.get("/notifications/:idUser", async (req, res) => {
       res.json({
         error: true,
         title: "Error Query",
-        msg: "Hubo un error al consultar las notificaciones"
+        msg:
+          "Hubo un error al consultar las notificaciones, por favor reportar este problema"
       });
     }
 
     res.json({
       error: false,
       notifications: result
+    });
+  });
+});
+
+route.get("/updatenotifications/:idUser", async (req, res) => {
+  const { idUser } = req.params;
+
+  let sql = "UPDATE notifications SET not_status = ? WHERE id_users = ?";
+
+  con.query(sql, [0, idUser], function(error, updated) {
+    if (error) {
+      console.log(
+        `Error al actualizar el Status de las Notificaciones del ID: ${idUser}. Error: ${error}`
+      );
+
+      res.json({
+        error: true,
+        title: "Error Update",
+        msg:
+          "Hubo un error al actualizar las notificaciones, por favor reportar este problema"
+      });
+    }
+
+    res.json({
+      error: false
     });
   });
 });
@@ -150,8 +184,8 @@ route.post("/register", (req, res) => {
           const passwordHashes = await bcrypt.hash(password, saltRounds);
 
           con.query(
-            "INSERT INTO users (use_name, use_lastname, use_email, use_password, use_mobile, use_numberefe, use_status, use_exchange_status) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-            [name, lastname, email, passwordHashes, mobile, 0, 1, 0],
+            "INSERT INTO users (use_name, use_lastname, use_email, use_password, use_level, use_mobile, use_numberefe, use_status, use_exchange_status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            [name, lastname, email, passwordHashes, 1, mobile, 0, 1, 0],
             (err, result) => {
               if (err) throw err;
 
@@ -242,6 +276,11 @@ route.post("/login", (req, res) => {
       } else {
         const similar = await bcrypt.compare(pass, result[0].use_password);
 
+        delete result[0].use_password;
+        delete result[0].use_mobile;
+        delete result[0].use_deleteHashPicture;
+        delete result[0].use_exchange_status;
+
         if (similar) {
           res.status(200).json({
             error: false,
@@ -265,7 +304,8 @@ route.post("/update", async (req, res) => {
     use_password,
     use_name,
     use_lastname,
-    use_email
+    use_email,
+    media
   } = req.body;
 
   const passwordHashed = use_password
@@ -274,99 +314,154 @@ route.post("/update", async (req, res) => {
 
   var sql;
 
-  const updateQuery = async () => {
-    if (!use_mobile.trim() && use_password.trim()) {
-      sql =
-        "UPDATE users SET use_name = " +
-        mysql.escape(use_name) +
-        ", use_lastname = " +
-        mysql.escape(use_lastname) +
-        ", use_email = " +
-        mysql.escape(use_email) +
-        ", use_password = " +
-        mysql.escape(passwordHashed) +
-        " WHERE id_users = " +
-        mysql.escape(req.body.id_users);
-    } else if (use_mobile.trim() && !use_password.trim()) {
-      sql =
-        "UPDATE users SET use_name = " +
-        mysql.escape(use_name) +
-        ", use_lastname = " +
-        mysql.escape(use_lastname) +
-        ", use_email = " +
-        mysql.escape(use_email) +
-        ", use_mobile = " +
-        mysql.escape(use_mobile) +
-        " WHERE id_users = " +
-        mysql.escape(req.body.id_users);
-    } else if (use_mobile.trim() && use_password.trim()) {
-      sql =
-        "UPDATE users SET use_name = " +
-        mysql.escape(use_name) +
-        ", use_lastname = " +
-        mysql.escape(use_lastname) +
-        ", use_email = " +
-        mysql.escape(use_email) +
-        ", use_password = " +
-        mysql.escape(passwordHashed) +
-        ", use_mobile = " +
-        mysql.escape(use_mobile) +
-        " WHERE id_users = " +
-        mysql.escape(req.body.id_users);
-    } else {
-      sql =
-        "UPDATE users SET use_name = " +
-        mysql.escape(use_name) +
-        ", use_lastname = " +
-        mysql.escape(use_lastname) +
-        ", use_email = " +
-        mysql.escape(use_email) +
-        " WHERE id_users = " +
-        mysql.escape(req.body.id_users);
-    }
+  if (media.length > 0) {
+    con.query("SELECT * FROM users WHERE id_users = ?", [id_users], function(
+      error,
+      data
+    ) {
+      if (error) {
+        console.log(
+          `Hubo un error al consultar la imagen de perfil del ID ${id_users}. Error: ${error}`
+        );
 
-    con.query(sql, function(err, updated) {
-      if (err) {
-        console.log(`Error update user: ${req.body.id_users}. Error: ${error}`);
         res.json({
           error: true,
-          title: "Error de Actualización",
+          title: "Error Query",
           msg:
-            "Hubo un error al actualizar los datos, por favor intente más tarde"
+            "Hubo un error al intentar consultar su antigua foto, por favor reporte este fallo"
         });
       }
 
+      if (data[0].use_picture != "NULL") {
+        let options = {
+          method: "DELETE",
+          url: `${IMGUR_API}/image/${data[0].use_deleteHashPicture}`,
+          headers: {
+            Authorization: `Client-ID ${process.env.CLIENT_ID}`
+          }
+        };
+
+        request(options, function(error, response) {
+          if (error) {
+            console.log(
+              `Hubo un error al intentar eliminar la antigua foto de perfil del ID ${id_users}, deleteHash ${data.use_deleteHashPicture}. Error: ${error}`
+            );
+
+            res.json({
+              error: true,
+              title: "Error Query",
+              msg:
+                "Hubo un error al intentar remover su antigua foto, por favor reporte este fallo"
+            });
+          }
+        });
+      }
+    });
+
+    let options = {
+      method: "POST",
+      url: `${IMGUR_API}/image`,
+      headers: {
+        Authorization: `Client-ID ${process.env.CLIENT_ID}`
+      },
+      formData: {
+        image: media
+      }
+    };
+
+    request(options, function(error, response) {
+      if (error) {
+        console.log(
+          `Hubo un error al subir la foto de perfil de ${use_name} ${use_lastname} ID ${id_users}. Error: ${error}`
+        );
+
+        res.json({
+          error: true,
+          title: "Error Query",
+          msg:
+            "Hubo un error al intentar subir su nueva foto, por favor reporte este fallo"
+        });
+      }
+
+      let { data, success, status } = JSON.parse(response.body);
+
+      if (success && status == 200) {
+        sql =
+          "UPDATE users SET use_picture = " +
+          mysql.escape(data.link) +
+          ", use_deleteHashPicture = " +
+          mysql.escape(data.deletehash) +
+          " WHERE id_users = " +
+          mysql.escape(id_users);
+
+        con.query(sql, function(error, updated) {
+          if (error) {
+            console.log(
+              `Hubo un error al actualizar la foto en la base de datos del ID ${id_users}. Error: ${error}`
+            );
+            res.json({
+              error: true,
+              title: "Error Query",
+              msg:
+                "Hubo un error al intentar guardar los datos de su nueva foto, por favor reporte este fallo"
+            });
+          }
+        });
+      } else {
+        console.log(
+          `La API de Imgur respondió error al intentar subir la foto de perfil del ID ${id_users}. Error: ${error}`
+        );
+        res.json({
+          error: true,
+          title: "Error Query",
+          msg:
+            "Hubo un error al intentar subir su nueva foto, por favor reporte este fallo"
+        });
+      }
+    });
+  }
+
+  sql =
+    "UPDATE users SET use_name = " +
+    mysql.escape(use_name) +
+    ", use_lastname = " +
+    mysql.escape(use_lastname) +
+    ", use_email = " +
+    mysql.escape(use_email);
+
+  if (use_mobile.length > 0 && passwordHashed.length > 0) {
+    sql = sql.concat(
+      ", use_mobile = " +
+        mysql.escape(use_mobile) +
+        ", use_password = " +
+        mysql.escape(passwordHashed)
+    );
+  } else if (use_mobile.length > 0) {
+    sql = sql.concat(", use_mobile = " + mysql.escape(use_mobile));
+  } else if (passwordHashed.length > 0) {
+    sql = sql.concat(", use_password = " + mysql.escape(passwordHashed));
+  }
+
+  sql = sql.concat(" WHERE id_users = " + mysql.escape(id_users));
+
+  con.query(sql, function(error, updated) {
+    if (error) {
+      console.log(
+        `No se logró actualizar la data del ID ${id_users}. Error: ${error}`
+      );
+
+      res.json({
+        error: true,
+        title: "Error Query",
+        msg:
+          "Hubo un error al tratar de actualizar sus datos, por favor reporte este fallo"
+      });
+    } else {
       res.json({
         error: false,
         title: "Datos actualizados",
-        msg: "Los datos se han guardado exitosamente"
+        msg: "Sus datos han sido actualizados sin problemas"
       });
-    });
-  };
-
-  sql = "SELECT * FROM users WHERE use_email = " + mysql.escape(use_email);
-
-  con.query(sql, function(err, validateEmail) {
-    if (err) {
-      console.log(err);
-      res.json({
-        error: true,
-        msg: "Error en consultas"
-      });
-    }
-
-    if (validateEmail.length > 0) {
-      if (id_users != validateEmail[0].id_users) {
-        res.json({
-          error: true,
-          title: "Correo existente",
-          msg: "El correo insertado ya lo posee otra persona"
-        });
-      } else {
-        updateQuery();
-      }
-    } else {
-      updateQuery();
     }
   });
 });

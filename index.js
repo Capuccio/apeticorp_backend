@@ -19,7 +19,11 @@ const URI = "mongodb://localhost/apeticorp";
 //   "mongodb+srv://Capuccio:WxujZDNwF0Ltx0tq@apeticorpcluster-hrm4x.mongodb.net/apeticorp?retryWrites=true&w=majority";
 
 mongoose
-  .connect(URI, { useNewUrlParser: true, useUnifiedTopology: true })
+  .connect(URI, {
+    useNewUrlParser: true,
+    useUnifiedTopology: true,
+    useFindAndModify: false
+  })
   .then(answer => console.log("DataBase MongoDB Connected"))
   .catch(err => console.log(`Couldn't connect to DataBase MongoDB: ${err}`));
 
