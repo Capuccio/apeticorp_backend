@@ -1,24 +1,25 @@
-const fs = require("fs");
-const path = require("path");
 const express = require("express");
+const request = require("request");
+const { IMGUR_API } = require("../api");
 const Posts = require("../models/posts");
+require("dotenv").config();
 
 const route = express();
 
-route.get("/posts/:page", async (req, res) => {
-  const { page } = req.params;
-  const limit = 4;
+route.get("/posts/:page/:status", async (req, res) => {
+  const { page, status } = req.params;
+  const limit = 10;
 
-  Posts.find({ status: 0 })
+  Posts.find({ status })
     .skip(page * limit - limit)
     .limit(limit)
     .sort({ _id: -1 })
     .exec(function(error, posts) {
       if (error) {
         console.log(error);
-        res.status(500).json({
+        res.json({
           error: true,
-          server: true,
+          title: "Error Query",
           msg: "Ha ocurrido un error en la consulta de los Posts"
         });
       }
@@ -30,6 +31,27 @@ route.get("/posts/:page", async (req, res) => {
     });
 });
 
+route.get("/post/:idPost", async (req, res) => {
+  const { idPost } = req.params;
+
+  Posts.findById(idPost, function(error, post) {
+    if (error) {
+      console.log("No se pudo obtener el Post, Error: ", error);
+
+      res.json({
+        error: true,
+        title: "Error Query",
+        msg: "Error al obtener datos del Post"
+      });
+    }
+
+    res.json({
+      error: false,
+      post
+    });
+  });
+});
+
 route.get("/postcomments/:idPost", async (req, res) => {
   const { idPost } = req.params;
 
@@ -38,6 +60,7 @@ route.get("/postcomments/:idPost", async (req, res) => {
       console.log("Error al consultar comentarios del Post ", idPost);
       res.json({
         error: true,
+        title: "Error Query",
         msg: "Hubo un error al consultar los mensajes del Post"
       });
     } else {
@@ -49,56 +72,115 @@ route.get("/postcomments/:idPost", async (req, res) => {
   });
 });
 
-route.post("/createposts", async (req, res) => {
-  let imagePath = path.normalize(
-    `./Themes/${req.body.type}/${req.body.id_user}`
-  );
+route.get("/post/:idPost/deletecomment/:idUser", async (req, res) => {
+  const { idPost, idUser } = req.params;
 
-  if (!fs.existsSync(imagePath)) {
-    fs.mkdirSync(imagePath, { recursive: true }, err => {
-      if (err) console.log(err);
-    });
-  }
-
-  let imagePathName = path.join(imagePath, req.body.name);
-
-  fs.writeFile(imagePathName, req.body.media, "base64", function(err) {
+  Posts.findById(idPost).exec(function(err, post) {
     if (err) {
-      console.log(
-        `No se logro guardar la imagen ${req.body.name} en la carpeta ${req.body.id_user}: ${err}`
-      );
-
+      console.log("Error Edit: ", err);
       res.json({
         error: true,
-        msg: "Hubo un error al subir la imagen, por favor intente más tarde"
+        title: "Error Edit",
+        msg: "Hubo un error para editar los comentarios"
       });
     }
 
-    let savePost = new Posts({
-      id_user: req.body.id_user,
-      contentText: req.body.postText,
-      contentMedia: imagePathName,
-      status: 0
-    });
+    for (let i = 0; i < post.comments.length; i++) {
+      if (post.comments[i].id_user == idUser) {
+        post.comments.splice(i, 1);
+      }
+    }
 
-    savePost.save(function(err, post) {
-      if (err) {
-        console.log(
-          `No se logro guardar la imagen ${req.body.name} en la carpeta ${req.body.id_user}: ${err}`
-        );
-
+    Posts.findByIdAndUpdate(idPost, post, function(error, commentsUpdated) {
+      if (error) {
+        console.log("Error Update: ", err);
         res.json({
           error: true,
-          msg: "Hubo un error al subir la imagen, por favor intente más tarde"
+          title: "Error Update",
+          msg: "Hubo un error al actualizar los comentarios"
         });
       }
 
       res.json({
         error: false,
+        title: "Comentario Eliminado",
         msg:
-          "La imagen se ha subido exitosamente, debe esperar a que el Administrador lo apruebe para que se pueda visualizar en la pantalla principal"
+          "Comentario eliminado, recargue la página para observar los cambios"
       });
     });
+  });
+});
+
+route.post("/createposts", async (req, res) => {
+  const { media, id_user, postText, userName } = req.body;
+
+  let options = {
+    method: "POST",
+    url: `${IMGUR_API}/upload`,
+    headers: {
+      Authorization: `Client-ID ${process.env.CLIENT_ID}`
+    },
+    formData: {
+      image: media
+    }
+  };
+
+  request(options, function(error, response) {
+    if (error) {
+      console.log(
+        `No se logro subir la imagen a Imgur del usuario: ${userName} con el ID: ${id_user}. Error: ${err}`
+      );
+
+      res.json({
+        error: true,
+        title: "Error Query",
+        msg: "Hubo un error al subir la imagen, por favor intente más tarde"
+      });
+    }
+
+    let { data, success, status } = JSON.parse(response.body);
+
+    if (success && status == 200) {
+      let savePost = new Posts({
+        id_user: id_user,
+        contentText: postText,
+        contentMedia: data.link,
+        deleteHash: data.deletehash,
+        status: 0
+      });
+
+      savePost.save(function(err, post) {
+        if (err) {
+          console.log(
+            `No se logro guardar los datos de la imagen del usuario ${userName} con el ID ${id_user}. Error: ${err}`
+          );
+
+          res.json({
+            error: true,
+            title: "Error Save",
+            msg: "Hubo un error al subir la imagen, por favor intente más tarde"
+          });
+        }
+
+        res.json({
+          error: false,
+          title: "Imagen subida",
+          msg:
+            "La imagen se ha subido exitosamente, debe esperar a que el Administrador lo apruebe para que se pueda visualizar en la pantalla principal"
+        });
+      });
+    } else {
+      console.log(
+        `Error en la API de Imgur, success: ${success} & status: ${status}`
+      );
+
+      res.json({
+        error: true,
+        title: "Error API",
+        msg:
+          "Hubo un error al tratar de subir la imágen, por favor intente más tarde"
+      });
+    }
   });
 });
 
@@ -106,7 +188,7 @@ route.post("/commentpost", async (req, res) => {
   const { idPost, idUser, comment } = req.body;
   Posts.findByIdAndUpdate(
     idPost,
-    { $push: { comments: { id_user: idUser, comment } } },
+    { $push: { comments: { id_user: idUser, comment, status: 0 } } },
     function(err, pushed) {
       if (err) {
         console.log("Error to save: ", err);
@@ -155,6 +237,90 @@ route.post("/likepost", async (req, res) => {
         error: false,
         msg: "Like actualizado"
       });
+    });
+  });
+});
+
+route.post("/acceptpost", async (req, res) => {
+  const { idPost } = req.body;
+
+  Posts.findByIdAndUpdate(idPost, { status: 1 }, function(error, updated) {
+    if (error) {
+      console.log(
+        `Hubo un error al aceptar el Post ${idPost}. Error: ${error}`
+      );
+
+      res.json({
+        error: true,
+        title: "Error Update",
+        msg:
+          "Hubo un error al aceptar el Post, por favor reportar este problema"
+      });
+    }
+
+    res.json({
+      error: false,
+      title: "Post aceptado",
+      msg: "EL post se ha aceptado con éxito."
+    });
+  });
+});
+
+route.post("/deletepost", async (req, res) => {
+  const { idPost } = req.body;
+
+  Posts.findById(idPost).exec((error, postData) => {
+    let options = {
+      method: "DELETE",
+      url: `${IMGUR_API}/image/${postData.deleteHash}`,
+      headers: {
+        Authorization: `Client-ID ${process.env.CLIENT_ID}`
+      }
+    };
+
+    request(options, function(error, response) {
+      if (error) {
+        console.log(
+          `Error en el Request para eliminar el Post ${idPost}. Error: ${error}`
+        );
+
+        res.json({
+          error: true,
+          title: "Error Backend",
+          msg: "Hubo un error en el Request"
+        });
+      }
+
+      const { success, status } = JSON.parse(response.body);
+
+      if (success && status == 200) {
+        Posts.findByIdAndRemove(idPost, function(error, result) {
+          if (error) {
+            console.log(`Error al eliminar el Post ${idPost}. Error: ${error}`);
+            res.json({
+              error: true,
+              title: "Error Query",
+              msg: "Error al intentar eliminar Post"
+            });
+          }
+
+          res.json({
+            error: false,
+            title: "Post Eliminado",
+            msg: "Se eliminó el Post sin problemas"
+          });
+        });
+      } else {
+        console.log(
+          `Error al intentar eliminar la imagen del Post de la API ${idPost}`
+        );
+
+        res.json({
+          error: true,
+          title: "Error API",
+          msg: "Hubo un error al intentar eliminar el Post"
+        });
+      }
     });
   });
 });

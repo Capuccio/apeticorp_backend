@@ -2,7 +2,6 @@ const express = require("express");
 const cors = require("cors");
 const fileUpload = require("express-fileupload");
 const mongoose = require("mongoose");
-const sql = require("./routes/connection/connectsql");
 
 const app = express();
 
@@ -13,18 +12,22 @@ app.use(express.json({ limit: "1000mb", extended: true }));
 app.use(fileUpload());
 
 /** Connect to MongoDB (MongoDB Atlas) */
-// mongoose.connect('mongodb://localhost/apeticorp', { useNewUrlParser: true, useUnifiedTopology: true })
-const URI =
-  "mongodb+srv://Capuccio:WxujZDNwF0Ltx0tq@apeticorpcluster-hrm4x.mongodb.net/apeticorp?retryWrites=true&w=majority";
+
+const URI = "mongodb://localhost/apeticorp";
 
 mongoose
-  .connect(URI, { useNewUrlParser: true, useUnifiedTopology: true })
+  .connect(URI, {
+    useNewUrlParser: true,
+    useUnifiedTopology: true,
+    useFindAndModify: false
+  })
   .then(answer => console.log("DataBase MongoDB Connected"))
   .catch(err => console.log(`Couldn't connect to DataBase MongoDB: ${err}`));
 
 /** Routes */
 app.use(require("./routes/users"));
 app.use(require("./routes/posts"));
+app.use(require("./routes/admins"));
 
 /** Starting API */
 app.set("port", process.env.PORT || 5000);
